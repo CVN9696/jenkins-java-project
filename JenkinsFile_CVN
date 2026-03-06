@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+    
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                script {
+                    checkout scmGit(
+                        branches: [[name: '*/master']],
+                        extensions: [],
+                        userRemoteConfigs: [[
+                            credentialsId: 'VamsiGitCred',
+                            url: 'https://github.com/CVN9696/jenkins-java-project.git'
+                        ]]
+                    )
+                }
+            }
+        }
+
+        stage('Verify Versions') {
+            steps {
+                sh 'java -version'
+                sh 'mvn -version'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Archive Artifact') {
+            steps {
+                archiveArtifacts artifacts: 'target/*.war', fingerprint: true
+            }
+        }
+    }
+ }
