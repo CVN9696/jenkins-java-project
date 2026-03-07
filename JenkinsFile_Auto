@@ -1,63 +1,68 @@
 pipeline {
     agent any
-    
+
     environment {
-        IMAGE_NAME = "java-jenkins-app"
-        CONTAINER_NAME = "java-jenkins-container"
+        IMAGE_NAME = "vamsichamarthi/vnimage"
+        CONTAINER_NAME = "java-app-container"
+        VERSION = "${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout Code') {
+        stage('Remove Old Container') {
             steps {
-                script {
-                    checkout scmGit(
-                        branches: [[name: '*/master']],
-                        extensions: [],
-                        userRemoteConfigs: [[
-                            credentialsId: 'VamsiGitCred',
-                            url: 'https://github.com/CVN9696/jenkins-java-project.git'
-                        ]]
-                    )
-                }
+                sh '''
+                docker stop $CONTAINER_NAME || true
+                docker rm $CONTAINER_NAME || true
+                '''
             }
         }
 
-        stage('Verify Versions') {
+        stage('Remove Old Image') {
             steps {
-                sh 'java -version'
-                sh 'mvn -version'
+                sh '''
+                docker rmi $IMAGE_NAME:latest || true
+                '''
             }
         }
 
-        stage('Build') {
+        stage('Build Application') {
             steps {
                 sh 'mvn clean package'
             }
         }
 
-        stage('Archive Artifact') {
-            steps {
-                archiveArtifacts artifacts: 'target/*.war', fingerprint: true
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE_NAME .'
+                sh '''
+                docker build -t $IMAGE_NAME:$VERSION .
+                docker tag $IMAGE_NAME:$VERSION $IMAGE_NAME:latest
+                '''
             }
         }
 
-        stage('Stop Old Container') {
+        stage('Run Container') {
             steps {
-                sh 'docker stop $CONTAINER_NAME || true'
-                sh 'docker rm $CONTAINER_NAME || true'
+                sh '''
+                docker run -d -p 7070:8080 --name $CONTAINER_NAME $IMAGE_NAME:$VERSION
+                '''
             }
         }
 
-        stage('Run New Container') {
+        stage('Docker Login') {
             steps {
-                sh 'docker run -d -p 8080:8080 --name $CONTAINER_NAME $IMAGE_NAME'
+                withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh 'echo $PASS | docker login -u $USER --password-stdin'
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                sh '''
+                docker push $IMAGE_NAME:$VERSION
+                docker push $IMAGE_NAME:latest
+                '''
             }
         }
 
