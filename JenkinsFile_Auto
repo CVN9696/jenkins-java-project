@@ -9,7 +9,7 @@ pipeline {
 
     stages {
 
-        stage('Remove Old Container') {
+        stage('Remove Old Containers') {
             steps {
                 sh '''
                 docker stop $CONTAINER_NAME || true
